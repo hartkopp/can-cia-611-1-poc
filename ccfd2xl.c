@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * llc-gw-tx.c - CAN XL CiA 613-3 sender
+ * ccfd2xl.c -  CAN XL CiA 611-1 CC/FD to XL converter
  *
  */
 
@@ -69,7 +69,8 @@ int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 	struct can_frame *cf = (struct can_frame *)fdf;
 	unsigned char pci = 0;
 	unsigned char ubuf[68] = { 0 }; /* pci + data + padding */
-	
+	int i;
+
 	xlf->af = fdf->can_id & 0x1FFFFFFFU;
 	xlf->sdt = 0x03; /* SDT 0x03 CC/FD tunneling */
 
@@ -80,9 +81,19 @@ int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 	if (mtu == CANFD_MTU) {
 		xlf->af |= FDF;
 
+		/* paranoia check if we have a proper CAN FD length value */
+		if (fdf->len != can_fd_dlc2len(can_fd_len2dlc(fdf->len)))
+			return 1;
+
 		/* copy data to unaligned buffer with 1 byte pci offset */
-		if (fdf->len)
-			memcpy(&ubuf[1], fdf->data, fdf->len);
+		if (fdf->len) {
+			/* copy aligned source data to alignment shift buffer */
+			copy_aligned32((__u32 *)&ubuf[4], (__u32 *)fdf->data, fdf->len);
+
+			/* shift the data to make space for the PCI in buf[0] */
+			for (i = 0; i < fdf->len; i++)
+				ubuf[i + 1] = ubuf[i + 4];
+		}
 
 		/* convert length value to CAN FD DLC */
 		pci = can_fd_len2dlc(fdf->len);
@@ -99,7 +110,7 @@ int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 
 		xlf->len = fdf->len + 1; /* data length + pci length */
 
-		/* copy data */
+		/* copy the aligned data */
 		copy_aligned32((__u32 *)xlf->data, (__u32 *)ubuf, xlf->len);
 
 		return 0; /* no error */
@@ -118,21 +129,27 @@ int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 		xlf->af |= RTR;
 		xlf->len = 1; /* XL DLC = 0 */
 
-		/* copy only the pci */
+		/* copy only the aligned pci */
 		copy_aligned32((__u32 *)xlf->data, (__u32 *)ubuf, xlf->len);
 
 		return 0; /* no error */
 	}
 
 	/* copy data to unaligned buffer with 1 byte pci offset */
-	if (cf->len)
-		memcpy(&ubuf[1], fdf->data, cf->len);
+	if (cf->len) {
+		/* copy aligned source data to alignment shift buffer */
+		copy_aligned32((__u32 *)&ubuf[4], (__u32 *)cf->data, cf->len);
+
+		/* shift the data to make space for the PCI in buf[0] */
+		for (i = 0; i < cf->len; i++)
+			ubuf[i + 1] = ubuf[i + 4];
+	}
 
 	xlf->len = cf->len + 1;
 
 	ubuf[0] = pci;
 
-	/* copy data */
+	/* copy the aligned data */
 	copy_aligned32((__u32 *)xlf->data, (__u32 *)ubuf, xlf->len);
 
 	return 0; /* no error */
@@ -168,7 +185,7 @@ int cc2xl(struct can_frame *cf, struct canxl_frame *xlf)
 		return 0; /* no error */
 	}
 
-	/* copy data */
+	/* copy the aligned data */
 	copy_aligned32((__u32 *)xlf->data, (__u32 *)cf->data, cf->len);
 	xlf->len = cf->len; /* 0x1 .. 0x8 */
 
@@ -203,7 +220,7 @@ int fd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf)
 		return 0; /* no error */
 	}
 
-	/* copy data */
+	/* copy the aligned data */
 	copy_aligned32((__u32 *)xlf->data, (__u32 *)fdf->data, fdf->len);
 	xlf->len = fdf->len; /* 0x1 .. 0x40 */
 
