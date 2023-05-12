@@ -14,7 +14,8 @@ CPPFLAGS += \
 
 PROGRAMS := \
 	canxlrcv \
-	ccfd2xl
+	ccfd2xl \
+	xl2ccfd
 
 all: $(PROGRAMS)
 
