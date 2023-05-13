@@ -386,6 +386,23 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
+		if (verbose) {
+			if (ioctl(src, SIOCGSTAMP, &tv) < 0) {
+				perror("SIOCGSTAMP");
+				return 1;
+			}
+
+			/* print timestamp and device name */
+			printf("(%ld.%06ld) %s ", tv.tv_sec, tv.tv_usec,
+			       argv[optind + 1]);
+
+			if (mtu == CAN_MTU)
+				printccframe((struct can_frame *)&fdf);
+			else
+				printfdframe(&fdf);
+
+		}
+
 		/* send CAN CC/FD frame */
 		nbytes = write(dst, &fdf, mtu);
 		if (nbytes != mtu) {
