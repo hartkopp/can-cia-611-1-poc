@@ -51,6 +51,19 @@ int copy_aligned32(__u32 *dest, __u32 *src, unsigned int len)
 	return len32<<2; /* return copied bytes */
 }
 
+void set_cc_dlc(struct can_frame *cf, __u8 dlc)
+{
+	/* dlc &= 0x0F was already done by the caller */
+
+	cf->len = dlc; /* raw DLC 0x0 .. 0xF */
+
+	/* add SocketCAN DLC > 8 representation */
+	if (cf->len > CAN_MAX_DLEN) {
+		cf->len8_dlc = cf->len;
+		cf->len = CAN_MAX_DLEN;
+	}
+}
+
 int sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 {
 	struct can_frame *cf = (struct can_frame *)fdf;
@@ -112,13 +125,7 @@ int sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 			return 0; /* spec -> invalid */
 
 		cf->can_id |= CAN_RTR_FLAG;
-		cf->len = pci; /* raw DLC 0x0 .. 0xF */
-
-		/* add SocketCAN DLC > 8 representation */
-		if (cf->len > CAN_MAX_DLEN) {
-			cf->len8_dlc = cf->len;
-			cf->len = CAN_MAX_DLEN;
-		}
+		set_cc_dlc(cf, pci);
 
 		return CAN_MTU;
 	}
@@ -127,13 +134,7 @@ int sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 	if (!pci)
 		return CAN_MTU;
 
-	cf->len = pci; /* raw DLC 0x0 .. 0xF */
-
-	/* add SocketCAN DLC > 8 representation */
-	if (cf->len > CAN_MAX_DLEN) {
-		cf->len8_dlc = cf->len;
-		cf->len = CAN_MAX_DLEN;
-	}
+	set_cc_dlc(cf, pci);
 
 	if (xlf->len > CAN_MAX_DLEN + 1)
 		return 0;
@@ -164,13 +165,8 @@ int sdt06(struct canxl_frame *xlf, struct can_frame *cf)
 
 	if (xlf->af & RTR) {
 		cf->can_id |= CAN_RTR_FLAG;
-		cf->len = xlf->data[0] & 0x0F;
 
-		/* add SocketCAN DLC > 8 representation */
-		if (cf->len > CAN_MAX_DLEN) {
-			cf->len8_dlc = cf->len;
-			cf->len = CAN_MAX_DLEN;
-		}
+		set_cc_dlc(cf, xlf->data[0] & 0x0F);
 
 		return CAN_MTU;
 	}
@@ -181,17 +177,18 @@ int sdt06(struct canxl_frame *xlf, struct can_frame *cf)
 
 	/* check if we have a proper CAN length value */
 	if (xlf->len > CAN_MAX_DLEN + 1)
-		return 0;
+		return 0; /* spec -> invalid */
 
-	cf->len = xlf->len;
+	if (xlf->len <= CAN_MAX_DLEN) {
+		/* standard CC frame with 0 .. 8 bytes */
+		cf->len = xlf->len;
+	} else {
+		/* get raw DLC > 8 value from behind the 8 bytes data */
+		if (xlf->data[8] & 0x0F <= CAN_MAX_DLEN)
+			return 0; /* spec -> invalid */
 
-	/* add SocketCAN DLC > 8 representation */
-	if (cf->len > CAN_MAX_DLEN) {
-		/* get raw DLC value from behind the 8 bytes data */
-		cf->len8_dlc = xlf->data[8] & 0x0F;
-		if (cf->len8_dlc <= CAN_MAX_DLEN)
-			return 0;
-		cf->len = CAN_MAX_DLEN;
+		/* valid DLC values 0x9 .. 0xF */
+		set_cc_dlc(cf, xlf->data[8] & 0x0F);
 	}
 
 	/* copy the aligned data */
