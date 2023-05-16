@@ -153,8 +153,6 @@ int cc2xl_sdt03(struct can_frame *cf, struct canxl_frame *xlf)
 
 	xlf->len = cf->len + 1;
 
-	ubuf[0] = pci;
-
 	/* copy the aligned data */
 	copy_aligned32((__u32 *)xlf->data, (__u32 *)ubuf, xlf->len);
 
