@@ -64,9 +64,8 @@ void set_cc_dlc(struct can_frame *cf, __u8 dlc)
 	}
 }
 
-int xl2ccfd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
+int xl2fd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 {
-	struct can_frame *cf = (struct can_frame *)fdf;
 	__u32 pci = (__u32)xlf->data[0]; /* read first LE __u32 word */
 	unsigned char ubuf[68] = { 0 }; /* pci + data + padding */
 	int i;
@@ -74,48 +73,56 @@ int xl2ccfd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 	fdf->can_id = xlf->af & 0x1FFFFFFFU;
 
 	if (xlf->af & IDE)
-		cf->can_id |= CAN_EFF_FLAG;
+		fdf->can_id |= CAN_EFF_FLAG;
 
-	if (xlf->af & FDF) {
-		fdf->flags = CANFD_FDF;
+	fdf->flags = CANFD_FDF;
 
-		if (xlf->af & RTR)
-			return 0; /* spec -> invalid */
+	if (xlf->af & RTR)
+		return 0; /* spec -> invalid */
 
-		if (pci & BRS3)
-			fdf->flags |= CANFD_BRS;
+	if (pci & BRS3)
+		fdf->flags |= CANFD_BRS;
 			
-		if (pci & ESI)
-			fdf->flags |= CANFD_ESI;
+	if (pci & ESI)
+		fdf->flags |= CANFD_ESI;
 
-		/* make pci the dlc value */
-		pci &= 0xF;
+	/* make pci the dlc value */
+	pci &= 0xF;
 
-		/* no data -> we are done as len is initialized to zero */
-		if (!pci)
-			return CANFD_MTU;
-
-		/* get length from DLC value */
-		fdf->len = can_fd_dlc2len(pci);
-
-		/* the DLC has to fit the CAN XL DLC (length + pci len) */
-		if (xlf->len != fdf->len + 1)
-			return 0; /* spec -> invalid */
-
-		/* copy aligned source data to alignment shift buffer */
-		copy_aligned32((__u32 *)ubuf, (__u32 *)xlf->data, xlf->len);
-
-		/* shift the data by one byte to cut the PCI in buf[0] */
-		for (i = 0; i < fdf->len; i++)
-			ubuf[i] = ubuf[i + 1];
-
-		/* copy aligned destination data from alignment shift buffer */
-		copy_aligned32((__u32 *)fdf->data, (__u32 *)ubuf, fdf->len);
-
+	/* no data -> we are done as len is initialized to zero */
+	if (!pci)
 		return CANFD_MTU;
-	}
 
-	/* Classical CAN */
+	/* get length from DLC value */
+	fdf->len = can_fd_dlc2len(pci);
+
+	/* the DLC has to fit the CAN XL DLC (length + pci len) */
+	if (xlf->len != fdf->len + 1)
+		return 0; /* spec -> invalid */
+
+	/* copy aligned source data to alignment shift buffer */
+	copy_aligned32((__u32 *)ubuf, (__u32 *)xlf->data, xlf->len);
+
+	/* shift the data by one byte to cut the PCI in buf[0] */
+	for (i = 0; i < fdf->len; i++)
+		ubuf[i] = ubuf[i + 1];
+
+	/* copy aligned destination data from alignment shift buffer */
+	copy_aligned32((__u32 *)fdf->data, (__u32 *)ubuf, fdf->len);
+
+	return CANFD_MTU;
+}
+
+int xl2cc_sdt03(struct canxl_frame *xlf, struct can_frame *cf)
+{
+	__u32 pci = (__u32)xlf->data[0]; /* read first LE __u32 word */
+	unsigned char ubuf[68] = { 0 }; /* pci + data + padding */
+	int i;
+
+	cf->can_id = xlf->af & 0x1FFFFFFFU;
+
+	if (xlf->af & IDE)
+		cf->can_id |= CAN_EFF_FLAG;
 
 	/* make pci the dlc value */
 	pci &= 0xF;
@@ -154,6 +161,15 @@ int xl2ccfd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 	copy_aligned32((__u32 *)cf->data, (__u32 *)ubuf, cf->len);
 
 	return CAN_MTU;
+}
+
+/* split into two functions to compare the effort */
+int xl2ccfd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
+{
+	if (xlf->af & FDF)
+		return xl2fd_sdt03(xlf, fdf);
+	else
+		return xl2cc_sdt03(xlf, (struct can_frame *)fdf);
 }
 
 int xl2cc_sdt06(struct canxl_frame *xlf, struct can_frame *cf)
