@@ -116,7 +116,7 @@ int fd2xl_sdt03(struct canfd_frame *fdf, struct canxl_frame *xlf)
 
 int cc2xl_sdt03(struct can_frame *cf, struct canxl_frame *xlf)
 {
-	unsigned char pci = 0;
+	unsigned char pci;
 	unsigned char ubuf[68] = { 0 }; /* pci + data + padding */
 	int i;
 
@@ -161,7 +161,7 @@ int cc2xl_sdt03(struct can_frame *cf, struct canxl_frame *xlf)
 
 int cc2xl_sdt06(struct can_frame *cf, struct canxl_frame *xlf)
 {
-	__u32 cc_dlc = get_cc_dlc(cf); /* get raw DLC value */
+	__u32 cc_dlc;
 
 	xlf->sdt = 0x06; /* SDT 0x06 CC tunneling */
 	xlf->af = cf->can_id & 0x1FFFFFFFU;
@@ -169,6 +169,8 @@ int cc2xl_sdt06(struct can_frame *cf, struct canxl_frame *xlf)
 	/* handle IDE flag */
 	if (cf->can_id & CAN_EFF_FLAG)
 		xlf->af |= IDE;
+
+	cc_dlc = get_cc_dlc(cf); /* get raw DLC value */
 
 	/* handle RTR frames */
 	if (cf->can_id & CAN_RTR_FLAG) {
