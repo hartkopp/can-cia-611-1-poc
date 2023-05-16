@@ -64,7 +64,7 @@ int get_cc_dlc(struct can_frame *cf)
 	return cf->len; /* 0x0 .. 0x8 */
 }
 
-int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
+int ccfd2xl_sdt03(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 {
 	struct can_frame *cf = (struct can_frame *)fdf;
 	unsigned char pci = 0;
@@ -155,7 +155,7 @@ int ccfd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf, int mtu)
 	return 0; /* no error */
 }
 
-int cc2xl(struct can_frame *cf, struct canxl_frame *xlf)
+int cc2xl_sdt06(struct can_frame *cf, struct canxl_frame *xlf)
 {
 	__u32 cc_dlc = get_cc_dlc(cf); /* get raw DLC value */
 
@@ -199,7 +199,7 @@ int cc2xl(struct can_frame *cf, struct canxl_frame *xlf)
 	return 0; /* no error */
 }
 
-int fd2xl(struct canfd_frame *fdf, struct canxl_frame *xlf)
+int fd2xl_sdt07(struct canfd_frame *fdf, struct canxl_frame *xlf)
 {
 	xlf->sdt = 0x07; /* SDT 0x07 FD tunneling */
 	xlf->af = fdf->can_id & 0x1FFFFFFFU;
@@ -364,12 +364,12 @@ int main(int argc, char **argv)
 		xlf.flags = CANXL_XLF;
 
 		if (use_sdt03) {
-			ccfd2xl(&fdf, &xlf, nbytes);
+			ccfd2xl_sdt03(&fdf, &xlf, nbytes);
 		} else {
 			if (nbytes == CAN_MTU)
-				cc2xl((struct can_frame *)&fdf, &xlf);
+				cc2xl_sdt06((struct can_frame *)&fdf, &xlf);
 			else
-				fd2xl(&fdf, &xlf);
+				fd2xl_sdt07(&fdf, &xlf);
 		}
 
 		if (verbose) {

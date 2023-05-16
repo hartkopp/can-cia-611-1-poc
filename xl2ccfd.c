@@ -64,7 +64,7 @@ void set_cc_dlc(struct can_frame *cf, __u8 dlc)
 	}
 }
 
-int sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
+int xl2ccfd_sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 {
 	struct can_frame *cf = (struct can_frame *)fdf;
 	__u32 pci = (__u32)xlf->data[0]; /* read first LE __u32 word */
@@ -156,7 +156,7 @@ int sdt03(struct canxl_frame *xlf, struct canfd_frame *fdf)
 	return CAN_MTU;
 }
 
-int sdt06(struct canxl_frame *xlf, struct can_frame *cf)
+int xl2cc_sdt06(struct canxl_frame *xlf, struct can_frame *cf)
 {
 	cf->can_id = xlf->af & 0x1FFFFFFFU;
 
@@ -197,7 +197,7 @@ int sdt06(struct canxl_frame *xlf, struct can_frame *cf)
 	return CAN_MTU;
 }
 
-int sdt07(struct canxl_frame *xlf, struct canfd_frame *fdf)
+int xl2fd_sdt07(struct canxl_frame *xlf, struct canfd_frame *fdf)
 {
 	fdf->can_id = xlf->af & 0x1FFFFFFFU;
 	fdf->flags = CANFD_FDF;
@@ -362,15 +362,15 @@ int main(int argc, char **argv)
 
 		switch (xlf.sdt) {
 		case 0x03:
-			mtu = sdt03(&xlf, &fdf);
+			mtu = xl2ccfd_sdt03(&xlf, &fdf);
 			break;
 
 		case 0x06:
-			mtu = sdt06(&xlf, (struct can_frame *)&fdf);
+			mtu = xl2cc_sdt06(&xlf, (struct can_frame *)&fdf);
 			break;
 
 		case 0x07:
-			mtu = sdt07(&xlf, &fdf);
+			mtu = xl2fd_sdt07(&xlf, &fdf);
 			break;
 
 		default:
